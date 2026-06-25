@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WUE Simulator — FWS Regime &amp; IceBrick Impact</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous"></script>
+<style>
+:root,:root[data-theme="dark"]{
+  --bg:#0d1217; --panel:#151d25; --panel2:#1b2630; --line:#293744;
+  --text:#e8eef4; --muted:#8a9aa8; --faint:#5d6e7c;
+  --water:#2dd4bf; --water-dim:#155e57;
+  --today:#f5a623; --today-dim:#6b4a13;
+  --chiller:#ef6b6b; --dry:#3a4a58;
+  --savings-bg:linear-gradient(160deg,#13231f,#151d25 60%);
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --disp:'Space Grotesk',system-ui,sans-serif;
+  --sans:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+}
+:root[data-theme="light"]{
+  --bg:#f4f7f9; --panel:#ffffff; --panel2:#eef2f5; --line:#dbe3ea;
+  --text:#15232f; --muted:#566876; --faint:#8a9aa8;
+  --water:#0d9488; --water-dim:#d2efeb;
+  --today:#b9760f; --today-dim:#f7e7c9;
+  --chiller:#d64545; --dry:#aebcc7;
+  --savings-bg:#eafaf7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  transition:background .25s ease,color .25s ease}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 22px 60px}
+.htop{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:10px}
+.themebtn{flex:none;background:var(--panel2);color:var(--muted);border:1px solid var(--line);
+  border-radius:8px;padding:8px 12px;font-family:var(--mono);font-size:12px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.themebtn:hover{border-color:var(--water);color:var(--text)}
+.themebtn svg{display:block}
+.hctrls{display:flex;align-items:center;gap:10px;flex:none}
+.htop .units{flex:none}
+.htop .units button{flex:0 0 auto;padding:8px 12px;white-space:nowrap}
+@media(max-width:620px){.htop{flex-direction:column}.hctrls{align-self:flex-start}}
+
+header{border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:24px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--water);margin:0 0 8px}
+h1{font-family:var(--disp);font-weight:700;font-size:30px;margin:0 0 6px;letter-spacing:-.01em}
+.sub{color:var(--muted);max-width:760px;margin:0}
+.sub b{color:var(--text);font-weight:500}
+
+.layout{display:grid;grid-template-columns:300px 1fr;gap:22px;align-items:start}
+@media(max-width:880px){.layout{grid-template-columns:1fr}}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.panel h2{font-family:var(--disp);font-size:13px;font-weight:500;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 16px;padding-bottom:10px;
+  border-bottom:1px solid var(--line)}
+
+.ctrl{margin-bottom:16px}
+.ctrl:last-child{margin-bottom:0}
+.ctrl label{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:12.5px;color:var(--muted);margin-bottom:7px}
+.ctrl label .val{font-family:var(--mono);font-size:13px;color:var(--text);
+  background:var(--panel2);padding:1px 8px;border-radius:5px;border:1px solid var(--line)}
+.ctrl .val.hl{color:var(--water);border-color:var(--water-dim)}
+select,input[type=range]{width:100%}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);
+  border-radius:7px;padding:9px 10px;font-family:var(--sans);font-size:13.5px;cursor:pointer}
+select:focus,input:focus{outline:2px solid var(--water-dim);outline-offset:1px}
+input[type=range]{-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;
+  background:var(--line);cursor:pointer;margin:4px 0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;
+  border-radius:50%;background:var(--water);border:2px solid var(--bg);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;
+  background:var(--water);border:2px solid var(--bg);cursor:pointer}
+.divider{height:1px;background:var(--line);margin:18px 0}
+.units{display:flex;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.units button{flex:1;background:var(--panel2);color:var(--muted);border:none;
+  padding:7px;font-family:var(--mono);font-size:12px;cursor:pointer}
+.units button.on{background:var(--water-dim);color:var(--water)}
+
+/* KPI hero */
+.hero{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+@media(max-width:680px){.hero{grid-template-columns:1fr}}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden}
+.kpi.savings{border-color:var(--water-dim);background:var(--savings-bg)}
+.kpi .k-label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.kpi .k-num{font-family:var(--mono);font-weight:600;font-size:26px;line-height:1.1;letter-spacing:-.01em}
+.kpi .k-unit{font-size:13px;color:var(--muted);font-weight:400}
+.kpi .k-sub{font-size:12px;color:var(--faint);margin-top:6px;font-family:var(--mono)}
+.kpi.savings .k-num{color:var(--water)}
+.tag{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:1px 7px;border-radius:4px;margin-bottom:8px}
+.tag.today{background:var(--today-dim);color:var(--today)}
+.tag.ice{background:var(--water-dim);color:var(--water)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+@media(max-width:680px){.grid2{grid-template-columns:1fr}}
+.chartbox{position:relative;height:230px;margin-top:4px}
+.chartbox.tall{height:440px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.swatch{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+.note{font-size:12px;color:var(--faint);line-height:1.6;margin-top:6px}
+.note b{color:var(--muted);font-weight:500}
+.statline{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12.5px;
+  padding:6px 0;border-bottom:1px dashed var(--line)}
+.statline:last-child{border-bottom:none}
+.statline .a{color:var(--today)}.statline .b{color:var(--water)}
+.hubtag{font-family:var(--mono);font-size:11px;color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="htop">
+    <div>
+      <p class="eyebrow">Cold thermal storage · cooling water analysis</p>
+      <h1>WUE Simulator — FWS regime &amp; IceBrick impact</h1>
+    </div>
+    <div class="hctrls">
+      <div class="units" id="units">
+        <button data-u="metric" class="on">Metric</button>
+        <button data-u="us">Imperial</button>
+      </div>
+      <button id="theme" class="themebtn" aria-label="Toggle light or dark theme">Dark</button>
+    </div>
+  </div>
+  <p class="sub">Hour-by-hour (<b>8,760</b>) analysis of evaporative water loss for an adiabatic dry-cooler plant.
+  Adiabatic spray engages whenever the dry-bulb is too high to make the target facility-water supply (FWS) dry.
+  Compare <b>today's regime</b> against an <b>IceBrick</b> case where CDU-level buffering of slow thermal spikes
+  permits a warmer FWS — shrinking both the hours of adiabatic operation and the water used in each.</p>
+</header>
+
+<div class="layout">
+  <!-- CONTROLS -->
+  <aside>
+    <div class="panel">
+      <h2>Site &amp; regime</h2>
+      <div class="ctrl">
+        <label for="hub">Data center hub</label>
+        <select id="hub"></select>
+        <div class="hubtag" id="hubtag" style="margin-top:7px"></div>
+      </div>
+      <div class="ctrl">
+        <label for="it">IT load <span class="val" id="it_v">10 MW</span></label>
+        <input type="range" id="it" min="1" max="200" step="1" value="10">
+      </div>
+      <div class="ctrl">
+        <label for="fws">Baseline FWS (today) <span class="val" id="fws_v">32 °C</span></label>
+        <input type="range" id="fws" min="18" max="45" step="1" value="32">
+      </div>
+      <div class="ctrl">
+        <label for="up">IceBrick FWS uplift <span class="val hl" id="up_v">+5 °C</span></label>
+        <input type="range" id="up" min="0" max="10" step="1" value="5">
+      </div>
+
+      <div class="divider"></div>
+      <h2 style="margin-top:0">Plant parameters</h2>
+      <div class="ctrl">
+        <label for="appr">Dry-cooler approach <span class="val" id="appr_v">6 °C</span></label>
+        <input type="range" id="appr" min="2" max="12" step="1" value="6">
+      </div>
+      <div class="ctrl">
+        <label for="eps">Adiabatic effectiveness <span class="val" id="eps_v">80 %</span></label>
+        <input type="range" id="eps" min="50" max="95" step="1" value="80">
+      </div>
+      <div class="ctrl">
+        <label for="dta">Air ΔT across coil <span class="val" id="dta_v">12 K</span></label>
+        <input type="range" id="dta" min="6" max="20" step="1" value="12">
+      </div>
+      <div class="ctrl">
+        <label for="hc">Heat captured to FWS <span class="val" id="hc_v">90 %</span></label>
+        <input type="range" id="hc" min="50" max="100" step="1" value="90">
+      </div>
+      <div class="ctrl">
+        <label for="drift">Drift / makeup factor <span class="val" id="drift_v">1.15×</span></label>
+        <input type="range" id="drift" min="100" max="140" step="1" value="115">
+      </div>
+
+      <div class="divider"></div>
+      <h2 style="margin-top:0">Air-cooled chiller (trim)</h2>
+      <div class="ctrl">
+        <label for="loopdt">FWS loop ΔT <span class="val" id="loopdt_v">8 °C</span></label>
+        <input type="range" id="loopdt" min="4" max="12" step="1" value="8">
+      </div>
+      <div class="ctrl" style="margin-bottom:0">
+        <label for="kwton">Chiller efficiency <span class="val" id="kwton_v">1.00 kW/ton</span></label>
+        <input type="range" id="kwton" min="0.6" max="1.8" step="0.05" value="1.0">
+      </div>
+    </div>
+  </aside>
+
+  <!-- RESULTS -->
+  <main>
+    <div id="errbar" style="display:none;background:var(--panel);border:1px solid var(--chiller);color:var(--chiller);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-family:var(--mono);font-size:12.5px;line-height:1.5"></div>
+    <div class="hero">
+      <div class="kpi">
+        <span class="tag today">TODAY</span>
+        <div class="k-label">Annual cooling water</div>
+        <div class="k-num" id="hw_today">— <span class="k-unit"></span></div>
+        <div class="k-sub" id="hw_today_wue"></div>
+      </div>
+      <div class="kpi">
+        <span class="tag ice">ICEBRICK +5°C</span>
+        <div class="k-label">Annual cooling water</div>
+        <div class="k-num" id="hw_ice">— <span class="k-unit"></span></div>
+        <div class="k-sub" id="hw_ice_wue"></div>
+      </div>
+      <div class="kpi savings">
+        <div class="k-label">Water avoided / year</div>
+        <div class="k-num" id="hw_save">—</div>
+        <div class="k-sub" id="hw_save_sub"></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h2>Monthly water draw</h2>
+        <div class="chartbox"><canvas id="cMonthly"></canvas></div>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--today)"></i>Today (FWS baseline)</span>
+          <span><i class="swatch" style="background:var(--water)"></i>IceBrick (FWS +uplift)</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Operating hours by mode</h2>
+        <div class="chartbox"><canvas id="cMode"></canvas></div>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--dry)"></i>Dry (free)</span>
+          <span><i class="swatch" style="background:var(--water)"></i>Adiabatic (water)</span>
+          <span><i class="swatch" style="background:var(--chiller)"></i>Chiller trim</span>
+        </div>
+        <div style="margin-top:12px">
+          <div class="statline"><span>adiabatic hours</span><span><span class="a" id="ah_t"></span> → <span class="b" id="ah_i"></span></span></div>
+          <div class="statline"><span>chiller-trim hours</span><span><span class="a" id="ch_t"></span> → <span class="b" id="ch_i"></span></span></div>
+          <div class="statline"><span>peak DB this site</span><span id="peakdb"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:18px">
+      <h2>Air-cooled chiller — trim stage (series, downstream of the coolers)</h2>
+      <div class="statline"><span>Required capacity @ design-day peak</span><span><span class="a" id="cap_t"></span> → <span class="b" id="cap_i"></span></span></div>
+      <div class="statline"><span>Annual chiller electricity</span><span><span class="a" id="ce_t"></span> → <span class="b" id="ce_i"></span></span></div>
+      <div class="statline"><span>Chiller-trim hours</span><span><span class="a" id="cth_t"></span> → <span class="b" id="cth_i"></span></span></div>
+      <p class="note">Air-cooled, so this stage adds <b>no water</b> — it trades the evaporation it avoids for compressor electricity.
+      It sits in series after the dry + adiabatic coolers and only trims the residual gap to FWS, so its load is the
+      shortfall fraction of the total heat. Capacity is sized to the peak (design-day) trim hour. A higher FWS (IceBrick)
+      shrinks both the capacity you must install and the energy it burns — often to zero in dry climates.</p>
+    </div>
+
+    <div class="panel" style="margin-bottom:18px">
+      <h2>All 15 hubs — water avoided with IceBrick (current parameters)</h2>
+      <div class="chartbox tall"><canvas id="cHubs"></canvas></div>
+      <p class="note">Same plant parameters applied to every hub. Hot-dry markets (Phoenix, Las Vegas, Dallas) show the
+      largest absolute savings because they spend the most hours in adiabatic mode today; cool-maritime markets
+      (Seattle, Portland) already run mostly dry, so the lever is small in absolute terms even when the percentage is high.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Method &amp; assumptions</h2>
+      <p class="note">
+      <b>Cooling logic.</b> For each hour the dry cooler can deliver FWS = dry-bulb + approach. When dry-bulb rises
+      above (FWS − approach), adiabatic pre-cooling sprays water to drop inlet air toward the wet-bulb, limited by the
+      adiabatic effectiveness ε applied to the (dry-bulb − wet-bulb) gap. If full spray still can't reach FWS, the hour
+      is flagged as chiller-trim and water is held at the adiabatic maximum.<br><br>
+      <b>Water.</b> Evaporated water = Q<sub>rej</sub> × ΔT<sub>precool</sub> / (ΔT<sub>air-coil</sub> × h<sub>fg</sub>),
+      h<sub>fg</sub> = 2257 kJ/kg, times the drift/makeup factor. Q<sub>rej</sub> = IT load × heat-capture fraction.
+      WUE = annual water ÷ annual IT energy.<br><br>
+      <b>Weather.</b> Hourly dry-bulb and dewpoint are synthesized from monthly climate normals (mean, daily range,
+      mean dewpoint) with a seeded diurnal + synoptic model; wet-bulb via the Stull approximation. This is a deterministic
+      <i>screening</i> generator — for a bankable number, swap in real TMY3 / AMY 8760 files per site. The IceBrick case
+      models only the FWS uplift enabled by buffering slow thermal transients; it does not yet credit chiller-energy or
+      PUE effects, which would add to the savings.
+      </p>
+    </div>
+  </main>
+</div>
+</div>
+
+<script>
+// ---------- climate normals: monthly mean DB (°C), daily range (°C), mean dewpoint (°C) ----------
+const HUBS = {
+ nova:{name:"Northern Virginia (Ashburn)",seed:1,clim:"Humid subtropical · big summer wet-bulb",
+   T:[1,3,7,13,18,23,26,25,21,14,8,3],R:[9,10,11,12,12,12,12,12,11,11,9,9],Td:[-4,-4,-1,4,11,16,19,18,14,7,1,-3]},
+ dfw:{name:"Dallas–Fort Worth",seed:2,clim:"Hot, humid summers",
+   T:[8,10,15,19,24,28,31,31,27,20,14,9],R:[11,11,12,12,11,11,11,11,11,12,11,11],Td:[0,2,6,12,17,20,21,21,18,12,5,1]},
+ svl:{name:"Silicon Valley (San Jose)",seed:3,clim:"Mediterranean · dry summer, low wet-bulb",
+   T:[10,12,14,15,18,20,21,21,21,18,13,10],R:[11,12,13,14,14,15,15,15,15,14,12,11],Td:[6,7,8,8,10,12,13,13,12,10,8,6]},
+ chi:{name:"Chicago",seed:4,clim:"Humid continental",
+   T:[-4,-3,3,9,15,21,24,23,19,12,5,-1],R:[8,9,10,11,11,11,11,11,11,10,8,8],Td:[-9,-8,-3,2,8,14,17,17,12,5,-1,-6]},
+ phx:{name:"Phoenix",seed:5,clim:"Hot desert · very dry except monsoon",
+   T:[13,15,18,23,28,34,36,35,32,25,17,12],R:[13,14,15,16,16,16,14,14,15,15,14,13],Td:[1,1,2,3,5,8,15,16,12,6,2,1]},
+ atl:{name:"Atlanta",seed:6,clim:"Humid subtropical",
+   T:[7,9,13,17,22,26,27,27,24,18,12,8],R:[11,11,12,12,11,10,10,10,10,11,11,10],Td:[0,1,5,9,15,19,21,20,17,10,4,1]},
+ nyc:{name:"New York / N. New Jersey",seed:7,clim:"Humid · coastal",
+   T:[1,2,6,12,18,23,26,25,21,14,9,4],R:[8,9,10,10,10,10,10,10,9,9,8,8],Td:[-5,-5,-1,4,11,16,19,18,14,8,2,-2]},
+ pdx:{name:"Portland / Hillsboro OR",seed:8,clim:"Marine · very dry summer",
+   T:[5,6,9,11,15,18,21,21,18,13,8,5],R:[7,8,9,10,11,11,13,13,12,9,7,6],Td:[2,2,4,5,8,10,11,11,10,8,5,3]},
+ cmh:{name:"Columbus OH",seed:9,clim:"Humid continental",
+   T:[-2,0,5,11,16,21,23,22,18,12,6,1],R:[8,9,10,11,11,11,11,11,11,10,8,8],Td:[-6,-5,-1,4,10,15,17,17,13,6,1,-4]},
+ slc:{name:"Salt Lake City",seed:10,clim:"Cold semi-arid · low wet-bulb, big range",
+   T:[-1,2,7,11,16,22,27,26,20,13,5,-1],R:[9,11,13,14,15,16,16,16,15,13,10,9],Td:[-5,-4,-2,0,3,4,6,7,4,0,-3,-5]},
+ las:{name:"Las Vegas",seed:11,clim:"Hot desert · extremely dry",
+   T:[9,12,16,20,26,32,35,34,29,21,13,8],R:[12,13,14,15,16,16,14,14,15,15,13,12],Td:[-3,-3,-3,-3,-2,-1,5,6,2,-2,-3,-3]},
+ den:{name:"Denver",seed:12,clim:"Semi-arid · high altitude, big range",
+   T:[-1,1,5,9,15,21,24,23,18,11,4,-1],R:[13,13,14,14,14,15,15,15,15,15,13,13],Td:[-8,-7,-4,0,5,8,11,11,6,-1,-5,-8]},
+ aus:{name:"Austin TX",seed:13,clim:"Humid subtropical · hot",
+   T:[11,13,17,21,25,29,31,31,28,22,16,12],R:[11,11,11,11,10,10,11,11,10,11,11,11],Td:[4,6,9,14,18,21,21,21,19,14,9,5]},
+ rno:{name:"Reno NV",seed:14,clim:"High desert · very dry, huge range",
+   T:[1,3,6,9,14,19,23,22,18,11,5,1],R:[14,15,16,17,18,19,20,20,19,17,14,13],Td:[-6,-6,-5,-4,-2,-1,-1,-2,-3,-5,-6,-6]},
+ sea:{name:"Seattle",seed:15,clim:"Marine · cool, mild",
+   T:[6,6,8,11,14,17,20,20,17,12,8,5],R:[6,7,8,9,10,10,12,12,11,8,6,5],Td:[3,3,4,5,8,10,11,12,10,8,5,3]}
+};
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DIM=[31,28,31,30,31,31,30,31,30,31,30,31]; // (Jul/Aug both 31; harmless approx)
+const DIMc=[31,28,31,30,31,30,31,31,30,31,30,31];
+
+// ---------- psychrometrics ----------
+const esat=T=>6.112*Math.exp(17.62*T/(243.12+T));
+const RHfromTd=(T,Td)=>Math.min(100,Math.max(1,100*esat(Td)/esat(T)));
+function wetBulb(T,RH){const rh=Math.max(5,Math.min(99,RH));
+  return T*Math.atan(0.151977*Math.sqrt(rh+8.313659))+Math.atan(T+rh)-Math.atan(rh-1.676331)
+    +0.00391838*Math.pow(rh,1.5)*Math.atan(0.023101*rh)-4.686035;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(r){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+
+// build & cache 8760 (DB, WB) per hub
+const WX={};
+function weather(key){
+  if(WX[key])return WX[key];
+  const h=HUBS[key],r=mulberry32(h.seed*2654435761>>>0),hrs=[];
+  let peak=-99;
+  for(let m=0;m<12;m++)for(let d=0;d<DIMc[m];d++){
+    const off=gauss(r)*3.2, offTd=off*0.6+gauss(r)*1.5;
+    for(let hh=0;hh<24;hh++){
+      const shape=Math.cos(2*Math.PI*(hh-16)/24);
+      let T=h.T[m]+(h.R[m]/2)*shape+off+gauss(r)*0.6;
+      let Td=h.Td[m]+offTd+gauss(r)*0.5; if(Td>T-0.5)Td=T-0.5;
+      const WB=wetBulb(T,RHfromTd(T,Td));
+      hrs.push({T,WB,m}); if(T>peak)peak=T;
+    }
+  }
+  return WX[key]={hrs,peak};
+}
+
+const HFG=2257;
+function simulate(key,FWS,p){
+  const {hrs}=weather(key), Q=p.IT_kW*p.hc, COP=3.51685/p.kwton;
+  let dry=0,adia=0,chil=0,water=0,chillPeak=0,chillEnergy=0;
+  const monthly=new Array(12).fill(0);
+  for(const o of hrs){
+    const airNeeded=FWS-p.appr, pre=o.T-airNeeded;
+    if(pre<=0){dry++;continue;}
+    const maxPre=p.eps*(o.T-o.WB), precool=Math.min(pre,Math.max(0,maxPre));
+    const w=Q*precool/(p.dta*HFG)*3600*p.drift; // litres (adiabatic spray runs in both adia & trim hours)
+    water+=w; monthly[o.m]+=w;
+    if(precool>=pre-1e-9){adia++;}
+    else{ chil++;
+      const shortfall=pre-precool;                    // °C the free stage could not deliver
+      const load=Math.min(Q, Q*shortfall/p.loopdt);   // kW thermal the chiller must trim (series, capped at total)
+      if(load>chillPeak)chillPeak=load;               // design-day capacity = peak trim hour
+      chillEnergy+=load/COP;                          // kWh electric (1 h); air-cooled → no water
+    }
+  }
+  return {dry,adia,chil,water,monthly,WUE:water/(p.IT_kW*8760),chillPeak,chillEnergy};
+}
+
+// ---------- UI state ----------
+const S={units:'metric',theme:'dark'};
+const $=id=>document.getElementById(id);
+function showErr(msg){const e=$('errbar'); if(!e)return; e.style.display='block';
+  e.textContent='Chart library issue: '+msg+'. The KPI numbers above are still live — the charts need Chart.js to load (check the network/CDN).';}
+window.addEventListener('error',ev=>{showErr((ev.error&&ev.error.message)||ev.message||'unknown script error');});
+function themeColors(){
+  const L=S.theme==='light';
+  return {grid:L?'#e1e8ee':'#293744', tick:L?'#566876':'#8a9aa8', text:L?'#15232f':'#e8eef4',
+    today:L?'#e6982b':'#f5a623', water:L?'#14b8a6':'#2dd4bf',
+    chiller:L?'#e05656':'#ef6b6b', dry:L?'#b3c0cb':'#3a4a58', ttbg:L?'#ffffff':'#0d1217'};
+}
+const ICON={
+  dark:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  light:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></svg>'
+};
+function applyTheme(t){
+  S.theme=t;
+  document.documentElement.setAttribute('data-theme',t);
+  $('theme').innerHTML=ICON[t]+'<span>'+(t==='dark'?'Dark':'Light')+'</span>';
+  update();
+}
+function readParams(){return{
+  IT_kW:+$('it').value*1000, appr:+$('appr').value, eps:+$('eps').value/100,
+  dta:+$('dta').value, hc:+$('hc').value/100, drift:+$('drift').value/100,
+  FWS:+$('fws').value, up:+$('up').value, loopdt:+$('loopdt').value, kwton:+$('kwton').value
+};}
+
+// unit formatting — full numbers, thousands-separated, no k/M abbreviation
+const NF=new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
+function vol(litres){
+  if(S.units==='us'){const g=litres*0.264172; return {n:g,u:'gal',s:NF.format(Math.round(g))};}
+  const t=litres/1000; return {n:t,u:'metric tons',s:NF.format(Math.round(t))}; // 1 m³ water ≈ 1 tonne
+}
+function wue(v){return S.units==='us'?{v:(v*0.264172).toFixed(4),u:'gal/kWh'}:{v:v.toFixed(3),u:'L/kWh'};}
+function tA(c){return S.units==='us'?Math.round(c*9/5+32)+' °F':c+' °C';}        // absolute temperature
+function tD(c,m){return S.units==='us'?Math.round(c*9/5)+' °F':c+' '+(m||'°C');} // temperature difference
+const fmtInt=x=>x.toLocaleString('en-US');
+
+// ---------- charts ----------
+let chM,chMode,chHubs;
+const GRID='#293744',TICK='#8a9aa8';
+if(typeof Chart!=='undefined'){Chart.defaults.font.family="'IBM Plex Mono',monospace";
+Chart.defaults.font.size=11; Chart.defaults.color=TICK;}
+
+function initCharts(){
+  if(typeof Chart==='undefined'){showErr('Chart.js did not load (CDN blocked or offline)');return;}
+  try{
+  chM=new Chart($('cMonthly'),{type:'bar',data:{labels:MONTHS,datasets:[
+    {label:'Today',data:[],backgroundColor:'#f5a623',borderRadius:3,categoryPercentage:.7,barPercentage:.9},
+    {label:'IceBrick',data:[],backgroundColor:'#2dd4bf',borderRadius:3,categoryPercentage:.7,barPercentage:.9}]},
+    options:baseOpts(' ')});
+  chMode=new Chart($('cMode'),{type:'bar',data:{labels:['Today','IceBrick'],datasets:[
+    {label:'Dry',data:[],backgroundColor:'#3a4a58',borderRadius:2},
+    {label:'Adiabatic',data:[],backgroundColor:'#2dd4bf',borderRadius:2},
+    {label:'Chiller',data:[],backgroundColor:'#ef6b6b',borderRadius:2}]},
+    options:{...baseOpts('hours'),scales:{x:{stacked:true,grid:{display:false},ticks:{color:TICK}},
+      y:{stacked:true,grid:{color:GRID},ticks:{color:TICK,callback:v=>v/1000+'k'},max:8760}},
+      indexAxis:'y'}});
+  chHubs=new Chart($('cHubs'),{type:'bar',data:{labels:[],datasets:[
+    {label:'Water avoided',data:[],backgroundColor:'#2dd4bf',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{display:false},tooltip:tooltipCfg()},
+      scales:{
+        x:{grid:{color:GRID},ticks:{color:TICK},beginAtZero:true},
+        y:{grid:{display:false},ticks:{color:TICK,autoSkip:false,font:{size:11}}}
+      }}});
+  }catch(e){ showErr('chart init — '+(e.message||e)); chM=chMode=chHubs=null; }
+}
+function baseOpts(unit){return{responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{display:false},tooltip:tooltipCfg(unit)},
+  scales:{x:{grid:{display:false},ticks:{color:TICK}},
+    y:{grid:{color:GRID},ticks:{color:TICK},beginAtZero:true}}};}
+function tooltipCfg(unit){return{backgroundColor:'#0d1217',borderColor:GRID,borderWidth:1,
+  titleColor:'#e8eef4',bodyColor:'#e8eef4',padding:10,
+  callbacks:{label:c=>{const v=c.raw; if(unit==='hours')return ` ${c.dataset.label}: ${fmtInt(Math.round(v))} h`;
+    const v2=Math.round(c.raw); return ` ${c.dataset.label}: ${v2.toLocaleString('en-US')}`;}}};}
+// note: monthly/hub data passed in litres → tooltip multiplies? handled below by passing litres directly
+
+// ---------- main update ----------
+function update(){
+  const p=readParams();
+  const key=$('hub').value;
+  $('hubtag').textContent=HUBS[key].clim;
+  // sync labels
+  $('it_v').textContent=$('it').value+' MW';
+  $('fws_v').textContent=tA(+$('fws').value);
+  $('up_v').textContent='+'+tD(+$('up').value);
+  $('appr_v').textContent=tD(+$('appr').value);
+  $('eps_v').textContent=$('eps').value+' %';
+  $('dta_v').textContent=tD(+$('dta').value,'K');
+  $('hc_v').textContent=$('hc').value+' %';
+  $('drift_v').textContent=($('drift').value/100).toFixed(2)+'×';
+  $('loopdt_v').textContent=tD(+$('loopdt').value);
+  $('kwton_v').textContent=(+$('kwton').value).toFixed(2)+' kW/ton';
+
+  const today=simulate(key,p.FWS,p);
+  const ice=simulate(key,p.FWS+p.up,p);
+
+  // hero KPIs (never depend on Chart.js)
+  const vt=vol(today.water), vi=vol(ice.water), save=today.water-ice.water, vs=vol(save);
+  const pct=today.water>0?100*save/today.water:0;
+  const wt=wue(today.WUE), wi=wue(ice.WUE), wd=wue(today.WUE-ice.WUE);
+  $('hw_today').innerHTML=`${vt.s} <span class="k-unit">${vt.u}</span>`;
+  $('hw_ice').innerHTML=`${vi.s} <span class="k-unit">${vi.u}</span>`;
+  $('hw_today_wue').textContent=`WUE ${wt.v} ${wt.u}`;
+  $('hw_ice_wue').textContent=`WUE ${wi.v} ${wi.u}`;
+  $('hw_save').innerHTML=`${vs.s} <span class="k-unit">${vs.u}</span>`;
+  const homes=Math.round((save/1000)/300);
+  $('hw_save_sub').textContent=`${pct.toFixed(0)}% lower · ΔWUE ${wd.v} ${wd.u}${homes>0?` · ≈ ${fmtInt(homes)} homes/yr`:''}`;
+
+  // stats
+  $('ah_t').textContent=fmtInt(today.adia)+' h'; $('ah_i').textContent=fmtInt(ice.adia)+' h';
+  $('ch_t').textContent=fmtInt(today.chil)+' h'; $('ch_i').textContent=fmtInt(ice.chil)+' h';
+  const pk=weather(key).peak;
+  $('peakdb').textContent=S.units==='us'?(pk*9/5+32).toFixed(1)+' °F':pk.toFixed(1)+' °C';
+
+  // air-cooled chiller (trim) — capacity in kW(metric)/RT(imperial), energy in MWh
+  const capStr=kw=>{ if(S.units==='us'){const rt=kw/3.51685; return rt>=1000?(rt/1000).toFixed(2)+' k RT':Math.round(rt)+' RT';}
+    return kw>=1000?(kw/1000).toFixed(2)+' MW':Math.round(kw)+' kW'; };
+  $('cap_t').textContent=capStr(today.chillPeak);
+  $('cap_i').textContent=capStr(ice.chillPeak);
+  $('ce_t').textContent=fmtInt(Math.round(today.chillEnergy/1000))+' MWh';
+  $('ce_i').textContent=fmtInt(Math.round(ice.chillEnergy/1000))+' MWh';
+  $('cth_t').textContent=fmtInt(today.chil)+' h';
+  $('cth_i').textContent=fmtInt(ice.chil)+' h';
+
+  // ---- charts (guarded so a library failure can't take down the numbers) ----
+  if(!chM) return;
+  try{
+    const C=themeColors();
+    const mUnit = S.units==='us'?'gal':'metric tons';
+    const conv = S.units==='us'?(L=>L*0.264172):(L=>L/1000);
+    [chM,chMode,chHubs].forEach(ch=>{
+      for(const ax of ['x','y']){const s=ch.options.scales[ax]; if(!s)continue;
+        if(s.grid && s.grid.display!==false) s.grid.color=C.grid;
+        if(s.ticks) s.ticks.color=C.tick;
+        if(s.title) s.title.color=C.tick;}
+      const tt=ch.options.plugins.tooltip; tt.backgroundColor=C.ttbg; tt.borderColor=C.grid;
+      tt.titleColor=C.text; tt.bodyColor=C.text;
+    });
+    // monthly
+    chM.data.datasets[0].backgroundColor=C.today; chM.data.datasets[1].backgroundColor=C.water;
+    chM.data.datasets[0].data=today.monthly.map(conv);
+    chM.data.datasets[1].data=ice.monthly.map(conv);
+    chM.options.scales.y.title={display:true,text:mUnit,color:C.tick};
+    chM.options.scales.y.ticks.callback=v=>NF.format(v);
+    chM.options.plugins.tooltip.callbacks.label=c=>` ${c.dataset.label}: ${NF.format(Math.round(c.raw))} ${mUnit}`;
+    chM.update();
+    // mode
+    chMode.data.datasets[0].backgroundColor=C.dry; chMode.data.datasets[1].backgroundColor=C.water;
+    chMode.data.datasets[2].backgroundColor=C.chiller;
+    chMode.data.datasets[0].data=[today.dry,ice.dry];
+    chMode.data.datasets[1].data=[today.adia,ice.adia];
+    chMode.data.datasets[2].data=[today.chil,ice.chil];
+    chMode.update();
+    // all hubs
+    const rows=Object.keys(HUBS).map(k=>{const t=simulate(k,p.FWS,p), i=simulate(k,p.FWS+p.up,p);
+      return {k,name:HUBS[k].name,save:t.water-i.water};}).sort((a,b)=>b.save-a.save);
+    chHubs.data.labels=rows.map(r=>r.name.replace(/ \(.*\)/,''));
+    chHubs.data.datasets[0].data=rows.map(r=>conv(r.save));
+    chHubs.data.datasets[0].backgroundColor=rows.map(r=>r.k===key?C.today:C.water);
+    chHubs.options.scales.x.title={display:true,text:mUnit+' / yr avoided',color:C.tick};
+    chHubs.options.scales.x.ticks.callback=v=>NF.format(v);
+    chHubs.options.plugins.tooltip.callbacks={label:c=>` ${NF.format(Math.round(c.raw))} ${mUnit}/yr`};
+    chHubs.update();
+    $('errbar').style.display='none';
+  }catch(e){ showErr(e.message||String(e)); }
+}
+
+// ---------- wire up ----------
+function buildHubSelect(){
+  const sel=$('hub');
+  for(const k in HUBS){const o=document.createElement('option');o.value=k;o.textContent=HUBS[k].name;sel.appendChild(o);}
+  sel.value='slc'; // default to Salt Lake City
+}
+['hub','it','fws','up','appr','eps','dta','hc','drift','loopdt','kwton'].forEach(id=>{
+  document.addEventListener('DOMContentLoaded',()=>$(id).addEventListener('input',update));
+});
+document.addEventListener('DOMContentLoaded',()=>{
+  buildHubSelect(); initCharts();
+  document.querySelectorAll('#units button').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('#units button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); S.units=b.dataset.u; update();
+  }));
+  $('theme').addEventListener('click',()=>applyTheme(S.theme==='dark'?'light':'dark'));
+  applyTheme('dark');
+});
+</script>
+</body>
+</html>
